@@ -1,0 +1,102 @@
+# Environment Setup
+python3 -m venv adk-env               # Create virtual environment
+source adk-env/bin/activate           # Activate (macOS/Linux)
+adk-env\Scripts\activate              # Activate (Windows)
+pip install google-adk                # Install ADK
+
+# Create Agents
+adk create my_agent                   # Create Python-based agent
+adk create --type=config my_agent     # Create YAML-based agent
+
+# Run Agents
+adk web                               # Web interface (from agent dir)
+adk web my_agent                      # Web interface (from parent dir)
+adk run                               # Terminal execution
+adk api_server                        # REST API server
+
+
+Python-based agent pattern
+from google.adk.agents import Agent
+
+root_agent = Agent(
+    model="gemini-flash-latest",
+    name="math_tutor_agent",
+    description="Helps students learn algebra by guiding them through problem-solving steps.",
+    instruction="""You are a patient and encouraging algebra tutor.
+
+    Your teaching approach:
+    1. When a student asks a question, first understand what they're struggling with
+    2. Break down the problem into smaller, manageable steps
+    3. Guide them to discover the answer rather than giving it directly
+    4. Provide positive reinforcement for effort and progress
+    5. Use simple language and avoid jargon
+
+    Always maintain a supportive, patient tone."""
+)
+
+
+YAML-based agent pattern
+# root_agent.yaml
+name: math_tutor_agent
+model: gemini-flash-latest
+description: Helps students learn algebra by guiding them through problem-solving steps.
+instruction: |
+  You are a patient and encouraging algebra tutor.
+
+  Your teaching approach:
+  1. When a student asks a question, first understand what they're struggling with
+  2. Break down the problem into smaller, manageable steps
+  3. Guide them to discover the answer rather than giving it directly
+  4. Provide positive reinforcement for effort and progress
+  5. Use simple language and avoid jargon
+
+  Always maintain a supportive, patient tone.
+
+
+  Programmatic execution pattern
+import asyncio
+from google.adk.agents import Agent
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
+from google.genai.types import Content, Part
+
+# Create agent
+agent = Agent(
+    model="gemini-flash-latest",
+    name="math_tutor",
+    instruction="You are a patient math tutor."
+)
+
+# Set up runner
+session_service = InMemorySessionService()
+runner = Runner(
+    agent=agent,
+    app_name="my_app",
+    session_service=session_service
+)
+
+# Run agent
+async def run_agent():
+    session = await session_service.create_session(
+        app_name="my_app",
+        user_id="user_1",
+        session_id="session_1"
+    )
+
+    user_message = Content(
+        role="user",
+        parts=[Part.from_text(text="How do I solve 2x + 5 = 13?")]
+    )
+
+    async for event in runner.run_async(
+        user_id="user_1",
+        session_id="session_1",
+        new_message=user_message
+    ):
+        if event.is_final_response() and event.content and event.content.parts:
+            for part in event.content.parts:
+                if part.text:
+                    print(part.text)
+
+# Execute
+asyncio.run(run_agent())
